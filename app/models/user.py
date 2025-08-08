@@ -3,6 +3,7 @@ User model for authentication and user management.
 """
 
 from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -24,3 +25,9 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    preferences = relationship("UserPreference", back_populates="user", cascade="all, delete-orphan")
+    user_services = relationship("UserService", back_populates="user", cascade="all, delete-orphan")
+    privacy_scores = relationship("PrivacyScore", back_populates="user", cascade="all, delete-orphan")
+    privacy_alerts = relationship("PrivacyAlert", back_populates="user", cascade="all, delete-orphan")

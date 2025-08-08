@@ -27,10 +27,16 @@ The Personal Data Firewall API is designed to be a **portfolio-worthy backend pr
 - Security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection)
 
 #### 🗄️ **Database & Models**
-- SQLAlchemy async ORM with SQLite
-- User model with email/password authentication
-- Proper database migrations and schema management
-- Transaction handling with rollback on errors
+- **SQLAlchemy async ORM with SQLite**
+- **Comprehensive User Model**: Email/password authentication, preferences, privacy score, alerts
+- **Service Model**: Tracks digital services, categories, and user-service relationships
+- **Policy Model**: Stores privacy policies, types (privacy, terms, cookie, DPA), and findings
+- **Policy Finding Model**: Captures analysis results, risk levels, confidence, and clause text
+- **Data Category Model**: Rich taxonomy of personal data types (identity, location, contact, media, behavioral, biometric, financial, health, device)
+- **User Preferences & Privacy Score**: User-specific privacy settings and scoring
+- **Alert Model**: Privacy alerts and types
+- **Proper database migrations and schema management**
+- **Transaction handling with rollback on errors**
 
 #### 🚀 **API Endpoints**
 - **Health Check**: `/health` - System status monitoring
@@ -38,10 +44,10 @@ The Personal Data Firewall API is designed to be a **portfolio-worthy backend pr
   - `POST /api/v1/auth/register` - User registration
   - `POST /api/v1/auth/login` - User login
   - `GET /api/v1/auth/me` - Get current user info
-- **Placeholder Endpoints** (ready for expansion):
-  - `GET /api/v1/users/` - User management
-  - `GET /api/v1/services/` - Service tracking
-  - `GET /api/v1/privacy/` - Privacy recommendations
+- **User Management**: `GET /api/v1/users/`
+- **Service Tracking**: `GET /api/v1/services/`
+- **Privacy Recommendations**: `GET /api/v1/privacy/`
+- **Policy & Data Category Expansion Ready**
 
 #### 🧪 **Testing & Quality**
 - **25 comprehensive test cases** with 100% success rate

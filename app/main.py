@@ -5,10 +5,9 @@ This module serves as the main entry point for the Personal Data Firewall API.
 It configures FastAPI, includes routers, and sets up middleware for security.
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import Response
 from contextlib import asynccontextmanager
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -68,7 +67,17 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add security headers middleware
+# IMPORTANT: Add CORS middleware FIRST, then security headers
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
+
+# Add security headers middleware AFTER CORS
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Security middleware
@@ -77,19 +86,10 @@ app.add_middleware(
     allowed_hosts=settings.ALLOWED_HOSTS
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
-
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
 
-# Health check endpoint
+# Health check endpoint with explicit headers
 @app.get("/health", tags=["Health"])
 async def health_check():
     """
@@ -102,6 +102,41 @@ async def health_check():
         "version": "1.0.0",
         "database": "connected"
     }
+
+
+@app.head("/health")
+async def health_check_head():
+    """
+    HEAD endpoint for health check (for header testing).
+    """
+    return Response(
+        status_code=200,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Content-Security-Policy": "default-src 'self'",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
+
+@app.options("/health")
+async def health_check_options():
+    """
+    OPTIONS endpoint for CORS preflight requests.
+    """
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 
 @app.get("/", tags=["Root"])

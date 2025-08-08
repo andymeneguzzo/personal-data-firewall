@@ -218,27 +218,39 @@ test_endpoint "POST" "$API_URL/auth/register" "{\"email\":\"invalid-email\",\"pa
 echo ""
 print_status "Performance and Security Tests..."
 
-# Test 16: Check CORS headers (use GET instead of HEAD)
+# Test 16: Check CORS headers (FIXED: case-insensitive matching)
 print_status "Testing CORS headers..."
 ((TOTAL_TESTS++))
-cors_response=$(curl -s -I -H "Origin: http://localhost:3000" "$BASE_URL/health")
-if echo "$cors_response" | grep -q "Access-Control-Allow-Origin"; then
+print_status "Sending request with Origin header..."
+cors_response=$(curl -s -D - -H "Origin: http://localhost:3000" "$BASE_URL/health")
+print_status "Full response headers:"
+echo "$cors_response" | head -n 10 | grep -E "(HTTP/|access-control|Access-Control|Content-Type|X-)"
+# FIXED: Use case-insensitive grep with -i flag
+if echo "$cors_response" | grep -qi "access-control-allow-origin"; then
     print_success "CORS headers are properly configured"
     ((PASSED_TESTS++))
 else
     print_warning "CORS headers not found in response"
+    print_warning "Checking for any Access-Control headers:"
+    echo "$cors_response" | grep -i "access-control" || echo "No Access-Control headers found"
     ((FAILED_TESTS++))
 fi
 
-# Test 17: Check security headers (use GET instead of HEAD)
+# Test 17: Check security headers (FIXED: case-insensitive matching)
 print_status "Testing security headers..."
 ((TOTAL_TESTS++))
-security_response=$(curl -s -I "$BASE_URL/health")
-if echo "$security_response" | grep -q "X-Content-Type-Options\|X-Frame-Options\|X-XSS-Protection"; then
+print_status "Sending request for security headers..."
+security_response=$(curl -s -D - "$BASE_URL/health")
+print_status "Full response headers:"
+echo "$security_response" | head -n 10 | grep -E "(HTTP/|X-|x-|Content-Security|Referrer)"
+# FIXED: Use case-insensitive grep with -i flag
+if echo "$security_response" | grep -qi "x-content-type-options\|x-frame-options\|x-xss-protection"; then
     print_success "Security headers are present"
     ((PASSED_TESTS++))
 else
     print_warning "Security headers not found"
+    print_warning "Checking for any X- headers:"
+    echo "$security_response" | grep -i "x-" || echo "No X- headers found"
     ((FAILED_TESTS++))
 fi
 

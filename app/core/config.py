@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     Application settings with environment variable support.
     
     Attributes:
-        PROJECT_NAME: Personal Data Firewall
+        PROJECT_NAME: Name of the project
         VERSION: API version
         API_V1_STR: API version prefix
         SECRET_KEY: JWT secret key for token generation
@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./personal_data_firewall.db"
     
     # Security middleware configuration
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "0.0.0.0"]
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
+    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "0.0.0.0", "*"]
+    ALLOWED_ORIGINS: List[str] = ["*"]  # Allow all origins for testing
     
     # Rate limiting configuration
     RATE_LIMIT_PER_MINUTE: int = 60

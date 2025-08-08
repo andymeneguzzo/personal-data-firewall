@@ -164,17 +164,30 @@ fi
 if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ]; then
     print_success "Token obtained successfully: ${TOKEN:0:20}..."
 
-    # Test 11: Get current user info (with token)
-    test_endpoint "GET" "$API_URL/auth/me" "" "200" "Get Current User (with token)"
-
-    # Test authenticated endpoints with token
-    auth_header="Authorization: Bearer $TOKEN"
+    # Test 11: Get current user info (with token) - Fixed authentication
+    print_status "Testing: Get Current User (with token)"
+    ((TOTAL_TESTS++))
+    response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN" "$API_URL/auth/me")
+    status_code=$(echo "$response" | tail -n1)
+    response_body=$(echo "$response" | head -n -1)
+    
+    if [ "$status_code" = "200" ]; then
+        print_success "✅ Get Current User (with token) - Status: $status_code"
+        echo "Response: $response_body" | head -c 200
+        echo ""
+        ((PASSED_TESTS++))
+    else
+        print_error "❌ Get Current User (with token) - Expected: 200, Got: $status_code"
+        echo "Response: $response_body"
+        ((FAILED_TESTS++))
+    fi
+    echo "----------------------------------------"
 
     # Test 12: Test rate limiting (make multiple requests)
     print_status "Testing rate limiting..."
     for i in {1..5}; do
         ((TOTAL_TESTS++))
-        response=$(curl -s -w "\n%{http_code}" -H "$auth_header" "$API_URL/auth/me")
+        response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN" "$API_URL/auth/me")
         status_code=$(echo "$response" | tail -n1)
         if [ "$status_code" = "200" ]; then
             print_success "Rate limit test $i: OK"

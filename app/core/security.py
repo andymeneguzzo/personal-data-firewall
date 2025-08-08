@@ -146,26 +146,36 @@ async def get_current_user(request: Request) -> Optional[dict]:
     Raises:
         HTTPException: If token is invalid or missing
     """
-    credentials: HTTPAuthorizationCredentials = await security(request)
-    
-    if not credentials:
+    try:
+        credentials: HTTPAuthorizationCredentials = await security(request)
+        
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        token = credentials.credentials
+        payload = verify_token(token)
+        
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        return payload
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Authentication error: {e}")  # Debug logging
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    token = credentials.credentials
-    payload = verify_token(token)
-    
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    return payload
 
 
 def check_rate_limit(request: Request):

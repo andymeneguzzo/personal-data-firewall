@@ -181,3 +181,23 @@ async def get_current_user_info(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get user information"
         )
+
+
+@router.get("/debug-token")
+async def debug_token(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Debug endpoint to test token authentication.
+    
+    Args:
+        current_user: Current authenticated user
+        
+    Returns:
+        dict: Token debug information
+    """
+    return {
+        "message": "Token is valid",
+        "user_email": current_user.get("sub"),
+        "token_payload": current_user
+    }

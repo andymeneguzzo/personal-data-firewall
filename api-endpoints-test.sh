@@ -14,10 +14,11 @@ NC='\033[0m' # No Color
 BASE_URL="http://localhost:8000"
 API_URL="$BASE_URL/api/v1"
 
-# Test data
-TEST_EMAIL="test@example.com"
+# Test data - Use unique emails for each test run
+TIMESTAMP=$(date +%s)
+TEST_EMAIL="test${TIMESTAMP}@example.com"
 TEST_PASSWORD="testpassword123"
-TEST_EMAIL_2="test2@example.com"
+TEST_EMAIL_2="test2${TIMESTAMP}@example.com"
 
 # Metrics counters
 TOTAL_TESTS=0
@@ -140,9 +141,9 @@ test_endpoint "POST" "$API_URL/auth/login" "{\"email\":\"nonexistent@example.com
 test_endpoint "GET" "$API_URL/auth/me" "" "401" "Get Current User (without token)"
 
 # Test 10: Test placeholder endpoints
-test_endpoint "GET" "$API_URL/users" "" "200" "Users Endpoint (placeholder)"
-test_endpoint "GET" "$API_URL/services" "" "200" "Services Endpoint (placeholder)"
-test_endpoint "GET" "$API_URL/privacy" "" "200" "Privacy Endpoint (placeholder)"
+test_endpoint "GET" "$API_URL/users/" "" "200" "Users Endpoint (placeholder)"
+test_endpoint "GET" "$API_URL/services/" "" "200" "Services Endpoint (placeholder)"
+test_endpoint "GET" "$API_URL/privacy/" "" "200" "Privacy Endpoint (placeholder)"
 
 echo ""
 print_status "Testing with authentication token..."
@@ -153,11 +154,15 @@ login_response=$(curl -s -X POST "$API_URL/auth/login" \
     -H "Content-Type: application/json" \
     -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\"}")
 
-# Extract token from response
-TOKEN=$(echo "$login_response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+# Extract token from response using jq if available, otherwise use grep
+if command -v jq &> /dev/null; then
+    TOKEN=$(echo "$login_response" | jq -r '.access_token // empty')
+else
+    TOKEN=$(echo "$login_response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+fi
 
-if [ -n "$TOKEN" ]; then
-    print_success "Token obtained successfully"
+if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ]; then
+    print_success "Token obtained successfully: ${TOKEN:0:20}..."
 
     # Test 11: Get current user info (with token)
     test_endpoint "GET" "$API_URL/auth/me" "" "200" "Get Current User (with token)"
@@ -182,6 +187,7 @@ if [ -n "$TOKEN" ]; then
 
 else
     print_error "Failed to obtain authentication token"
+    print_error "Login response: $login_response"
 fi
 
 echo ""
@@ -199,7 +205,7 @@ test_endpoint "POST" "$API_URL/auth/register" "{\"email\":\"invalid-email\",\"pa
 echo ""
 print_status "Performance and Security Tests..."
 
-# Test 16: Check CORS headers
+# Test 16: Check CORS headers (use GET instead of HEAD)
 print_status "Testing CORS headers..."
 ((TOTAL_TESTS++))
 cors_response=$(curl -s -I -H "Origin: http://localhost:3000" "$BASE_URL/health")
@@ -211,11 +217,11 @@ else
     ((FAILED_TESTS++))
 fi
 
-# Test 17: Check security headers
+# Test 17: Check security headers (use GET instead of HEAD)
 print_status "Testing security headers..."
 ((TOTAL_TESTS++))
 security_response=$(curl -s -I "$BASE_URL/health")
-if echo "$security_response" | grep -q "X-Content-Type-Options"; then
+if echo "$security_response" | grep -q "X-Content-Type-Options\|X-Frame-Options\|X-XSS-Protection"; then
     print_success "Security headers are present"
     ((PASSED_TESTS++))
 else

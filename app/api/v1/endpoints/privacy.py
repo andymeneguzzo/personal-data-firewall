@@ -7,4 +7,11 @@ router = APIRouter()
 
 @router.get("/")
 async def get_privacy():
-    return {"message": "Privacy endpoint - coming soon"}
+    """
+    Get privacy information (placeholder endpoint).
+    """
+    return {
+        "message": "Privacy endpoint - coming soon",
+        "status": "placeholder",
+        "description": "This endpoint will provide privacy recommendations when implemented"
+    }

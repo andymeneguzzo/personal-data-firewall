@@ -7,4 +7,11 @@ router = APIRouter()
 
 @router.get("/")
 async def get_services():
-    return {"message": "Services endpoint - coming soon"}
+    """
+    Get all available services (placeholder endpoint).
+    """
+    return {
+        "message": "Services endpoint - coming soon",
+        "status": "placeholder",
+        "description": "This endpoint will list all available services when implemented"
+    }

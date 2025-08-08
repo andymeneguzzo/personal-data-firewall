@@ -83,6 +83,7 @@ async def register(
         raise
     except Exception as e:
         await db.rollback()
+        print(f"Registration error: {e}")  # Debug logging
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Registration failed"
@@ -135,6 +136,7 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"Login error: {e}")  # Debug logging
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Login failed"
@@ -174,6 +176,7 @@ async def get_current_user_info(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"Get user info error: {e}")  # Debug logging
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get user information"

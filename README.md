@@ -45,7 +45,9 @@ The Personal Data Firewall API is designed to be a **portfolio-worthy backend pr
   - `POST /api/v1/auth/login` - User login
   - `GET /api/v1/auth/me` - Get current user info
 - **User Management**: `GET /api/v1/users/`
-- **Service Tracking**: `GET /api/v1/services/`
+- **Service Tracking**: 
+  - `GET /api/v1/services/` - List user services
+  - `POST /api/v1/services/` - Create new service
 - **Privacy Recommendations**: `GET /api/v1/privacy/`
 - **Policy & Data Category Expansion Ready**
 

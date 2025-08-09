@@ -323,7 +323,7 @@ async def get_user_services(
         result = await db.execute(query)
         user_services = result.scalars().all()
         
-        # Convert to response format
+        # Convert to response format with CORRECT field mapping
         response_data = []
         for user_service in user_services:
             service = user_service.service
@@ -331,11 +331,11 @@ async def get_user_services(
                 'id': user_service.id,
                 'service_id': service.id,
                 'service_name': service.name,
-                'service_category': service.category.value if hasattr(service.category, 'value') else str(service.category),
-                'added_at': user_service.created_at,
-                'is_active': user_service.is_active,
+                'service_category': service.category,  # Already a string
+                'added_at': user_service.added_at,  # FIXED: Use correct field name
+                'is_active': user_service.status == "active",  # FIXED: Convert status to boolean
                 'risk_score': 50.0,  # TODO: Calculate from privacy service
-                'privacy_settings': user_service.privacy_settings or {}
+                'privacy_settings': {}  # FIXED: Default empty dict since field doesn't exist in model
             }
             response_data.append(UserServiceResponse(**user_service_dict))
         
@@ -383,27 +383,28 @@ async def add_user_service(
                 detail="Service already added to user account"
             )
         
-        # Create new user service
+        # Create new user service with CORRECT field mapping
         user_service = UserService(
             user_id=current_user.id,
             service_id=service_request.service_id,
-            privacy_settings=service_request.privacy_settings or {}
+            status="active",  # FIXED: Use status instead of is_active
+            # Note: privacy_settings would need to be stored as JSON in notes or separate table
         )
         
         db.add(user_service)
         await db.commit()
         await db.refresh(user_service)
         
-        # Return response
+        # Return response with CORRECT field mapping
         user_service_dict = {
             'id': user_service.id,
             'service_id': service.id,
             'service_name': service.name,
-            'service_category': service.category.value if hasattr(service.category, 'value') else str(service.category),
-            'added_at': user_service.created_at,
-            'is_active': user_service.is_active,
+            'service_category': service.category,  # Already a string
+            'added_at': user_service.added_at,  # FIXED: Use correct field name
+            'is_active': user_service.status == "active",  # FIXED: Convert status to boolean
             'risk_score': 50.0,  # TODO: Calculate from privacy service
-            'privacy_settings': user_service.privacy_settings or {}
+            'privacy_settings': service_request.privacy_settings or {}  # FIXED: Use request data
         }
         
         return UserServiceResponse(**user_service_dict)
@@ -458,7 +459,7 @@ async def remove_user_service(
         )
 
 
-@router.get("/user/privacy-impact", response_model=UserPrivacyImpactResponse)  # FIXED: Updated return type
+@router.get("/user/privacy-impact", response_model=UserPrivacyImpactResponse)
 async def get_privacy_impact(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)

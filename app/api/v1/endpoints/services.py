@@ -76,16 +76,23 @@ async def get_all_services(
         result = await db.execute(query)
         services = result.scalars().all()
         
-        # Convert to response models
+        # Convert to response models with ALL required fields
         response_data = []
         for service in services:
             service_dict = {
-                'id': service.id,
+                # From ServiceBase
                 'name': service.name,
+                'domain': service.domain,
+                'category': service.category,
                 'description': service.description,
-                'category': service.category.value if hasattr(service.category, 'value') else str(service.category),
-                'website_url': service.website_url,
+                'website': f"https://{service.domain}" if service.domain else None,
                 'privacy_policy_url': service.privacy_policy_url,
+                'terms_of_service_url': service.terms_of_service_url,
+                
+                # From ServiceResponse
+                'id': service.id,
+                'logo_url': service.logo_url,
+                'is_active': service.is_active,  # FIXED: Added missing field
                 'created_at': service.created_at,
                 'updated_at': service.updated_at
             }
@@ -166,16 +173,23 @@ async def search_services(
         result = await db.execute(query)
         services = result.scalars().all()
         
-        # Convert to response format
+        # Convert to response format with ALL required fields
         results = []
         for service in services:
             service_dict = {
-                'id': service.id,
+                # From ServiceBase
                 'name': service.name,
+                'domain': service.domain,
+                'category': service.category,
                 'description': service.description,
-                'category': service.category.value if hasattr(service.category, 'value') else str(service.category),
-                'website_url': service.website_url,
+                'website': f"https://{service.domain}" if service.domain else None,
                 'privacy_policy_url': service.privacy_policy_url,
+                'terms_of_service_url': service.terms_of_service_url,
+                
+                # From ServiceResponse
+                'id': service.id,
+                'logo_url': service.logo_url,
+                'is_active': service.is_active,  # FIXED: Added missing field
                 'created_at': service.created_at,
                 'updated_at': service.updated_at
             }
@@ -211,14 +225,21 @@ async def get_service(
                 detail="Service not found"
             )
         
-        # Convert to response model
+        # Convert to response model with ALL required fields
         service_dict = {
-            'id': service.id,
+            # From ServiceBase
             'name': service.name,
+            'domain': service.domain,
+            'category': service.category,
             'description': service.description,
-            'category': service.category.value if hasattr(service.category, 'value') else str(service.category),
-            'website_url': service.website_url,
+            'website': f"https://{service.domain}" if service.domain else None,
             'privacy_policy_url': service.privacy_policy_url,
+            'terms_of_service_url': service.terms_of_service_url,
+            
+            # From ServiceResponse
+            'id': service.id,
+            'logo_url': service.logo_url,
+            'is_active': service.is_active,  # FIXED: Added missing field
             'created_at': service.created_at,
             'updated_at': service.updated_at
         }

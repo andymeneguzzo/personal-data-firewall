@@ -5,7 +5,7 @@ This module provides comprehensive CRUD operations for user services,
 including privacy settings and policy information.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
@@ -26,19 +26,22 @@ from app.schemas.service import (
     UserServiceCreate,
     UserServiceUpdate,
     ServiceSearchResponse,
-    ServicePolicyResponse
+    ServicePolicyResponse,
+    ServiceCategoryType
 )
-from app.services.policy_scraper import policy_scraper
-from app.services.privacy_service import privacy_service
+# TODO: Uncomment when these services are implemented
+# from app.services.policy_scraper import policy_scraper
+# from app.services.privacy_service import privacy_service
 
-router = APIRouter(prefix="/services", tags=["Services"])
+# FIXED: Remove prefix here since it's added in api.py
+router = APIRouter(tags=["Services"])
 
 
 @router.get("/", response_model=List[ServiceResponse])
 async def get_all_services(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    category: Optional[ServiceCategory] = None,
+    category: Optional[ServiceCategoryType] = None,
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
@@ -52,9 +55,17 @@ async def get_all_services(
     """
     query = select(Service).where(Service.is_active == True)
     
-    # Apply filters
+    # Apply filters - convert category string to enum
     if category:
-        query = query.where(Service.category == category)
+        # Convert string category to enum
+        try:
+            category_enum = ServiceCategory(category)
+            query = query.where(Service.category == category_enum)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid category: {category}"
+            )
     
     if search:
         search_term = f"%{search}%"
@@ -71,7 +82,8 @@ async def get_all_services(
     result = await db.execute(query)
     services = result.scalars().all()
     
-    return [ServiceResponse.from_orm(service) for service in services]
+    # FIXED: Use model_validate instead of from_orm for Pydantic v2
+    return [ServiceResponse.model_validate(service) for service in services]
 
 
 @router.get("/categories", response_model=List[str])
@@ -83,7 +95,7 @@ async def get_service_categories():
 @router.get("/search", response_model=ServiceSearchResponse)
 async def search_services(
     q: str = Query(..., min_length=2),
-    category: Optional[ServiceCategory] = None,
+    category: Optional[ServiceCategoryType] = None,
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
@@ -107,7 +119,14 @@ async def search_services(
     )
     
     if category:
-        query = query.where(Service.category == category)
+        try:
+            category_enum = ServiceCategory(category)
+            query = query.where(Service.category == category_enum)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid category: {category}"
+            )
     
     query = query.limit(limit)
     result = await db.execute(query)
@@ -191,7 +210,7 @@ async def get_service_policy(
 
 @router.get("/user/my-services", response_model=List[UserServiceResponse])
 async def get_user_services(
-    status_filter: Optional[str] = Query(None, regex="^(active|inactive|considering)$"),
+    status_filter: Optional[str] = Query(None, pattern="^(active|inactive|considering)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -264,13 +283,6 @@ async def add_service_to_user(
     # Load the service relationship
     await db.refresh(user_service, ['service'])
     
-    # Trigger privacy score recalculation in background
-    try:
-        await privacy_service.calculate_and_save_privacy_score(current_user.id, db)
-    except Exception as e:
-        # Log error but don't fail the request
-        pass
-    
     return UserServiceResponse.from_orm(user_service)
 
 
@@ -312,7 +324,9 @@ async def update_user_service(
     # Trigger privacy score recalculation if status changed
     if 'status' in update_data:
         try:
-            await privacy_service.calculate_and_save_privacy_score(current_user.id, db)
+            # TODO: Uncomment when privacy_service is implemented
+            # await privacy_service.calculate_and_save_privacy_score(current_user.id, db)
+            pass
         except Exception:
             pass
     
@@ -348,7 +362,9 @@ async def remove_user_service(
     
     # Trigger privacy score recalculation
     try:
-        await privacy_service.calculate_and_save_privacy_score(current_user.id, db)
+        # TODO: Uncomment when privacy_service is implemented
+        # await privacy_service.calculate_and_save_privacy_score(current_user.id, db)
+        pass
     except Exception:
         pass
     
@@ -376,21 +392,26 @@ async def refresh_service_policy(
         )
     
     # Scrape latest policy
-    async with policy_scraper:
-        scrape_result = await policy_scraper.scrape_service_policy(service)
+    # TODO: Uncomment when policy_scraper is implemented
+    # async with policy_scraper:
+    #     scrape_result = await policy_scraper.scrape_service_policy(service)
     
-    if scrape_result["success"]:
-        return {
-            "message": "Policy refreshed successfully",
-            "policy_url": scrape_result["policy_url"],
-            "content_length": len(scrape_result["policy_content"] or ""),
-            "scraped_at": scrape_result["scraped_at"]
-        }
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to refresh policy: {scrape_result.get('error', 'Unknown error')}"
-        )
+    # if scrape_result["success"]:
+    #     return {
+    #         "message": "Policy refreshed successfully",
+    #         "policy_url": scrape_result["policy_url"],
+    #         "content_length": len(scrape_result["policy_content"] or ""),
+    #         "scraped_at": scrape_result["scraped_at"]
+    #     }
+    # else:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail=f"Failed to refresh policy: {scrape_result.get('error', 'Unknown error')}"
+    #     )
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Policy scraping functionality is not yet implemented."
+    )
 
 
 @router.get("/user/privacy-impact")

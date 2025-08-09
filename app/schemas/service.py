@@ -5,13 +5,31 @@ This module contains all request/response models for service-related operations,
 including user service management and policy information.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 from pydantic import BaseModel, Field, HttpUrl, validator
 from enum import Enum
 
-from app.models.service import ServiceCategory
-from app.models.policy import PolicyType, RiskLevel
+# Define service categories as literals for Pydantic
+ServiceCategoryType = Literal[
+    "Social Media",
+    "Communication", 
+    "Transportation",
+    "E-commerce",
+    "Entertainment",
+    "Productivity",
+    "Finance",
+    "Health",
+    "Education",
+    "News",
+    "Cloud Storage",
+    "Analytics",
+    "Other"
+]
+
+# Define policy types and risk levels as literals
+PolicyTypeStr = Literal["privacy_policy", "terms_of_service", "cookie_policy", "dpa"]
+RiskLevelStr = Literal["low", "medium", "high", "critical"]
 
 
 # Base Service Schemas
@@ -20,7 +38,7 @@ class ServiceBase(BaseModel):
     """Base service schema with common fields."""
     name: str = Field(..., min_length=1, max_length=100, description="Service name")
     domain: Optional[str] = Field(None, max_length=255, description="Service domain (e.g., instagram.com)")
-    category: ServiceCategory = Field(..., description="Service category")
+    category: ServiceCategoryType = Field(..., description="Service category")
     description: Optional[str] = Field(None, max_length=500, description="Service description")
     website: Optional[HttpUrl] = Field(None, description="Service website URL")
     privacy_policy_url: Optional[HttpUrl] = Field(None, description="Privacy policy URL")
@@ -36,7 +54,7 @@ class ServiceUpdate(BaseModel):
     """Schema for updating an existing service."""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     domain: Optional[str] = Field(None, max_length=255)
-    category: Optional[ServiceCategory] = None
+    category: Optional[ServiceCategoryType] = None
     description: Optional[str] = Field(None, max_length=500)
     website: Optional[HttpUrl] = None
     privacy_policy_url: Optional[HttpUrl] = None
@@ -68,7 +86,7 @@ class PolicyFindingResponse(BaseModel):
     id: int
     clause_text: str
     finding_type: str
-    risk_level: RiskLevel
+    risk_level: RiskLevelStr
     confidence_score: float
     data_categories: List[str]
     user_impact: Optional[str] = None
@@ -81,7 +99,7 @@ class PolicyResponse(BaseModel):
     """Schema for policy response data."""
     id: int
     service_id: int
-    policy_type: PolicyType
+    policy_type: PolicyTypeStr
     version: Optional[str] = None
     effective_date: Optional[datetime] = None
     content: Optional[str] = None
@@ -137,7 +155,7 @@ class UserServiceBase(BaseModel):
     service_id: int = Field(..., description="ID of the service")
     status: str = Field(
         default="active", 
-        regex="^(active|inactive|considering)$",
+        pattern="^(active|inactive|considering)$",  # FIXED: Changed from regex to pattern
         description="Status of the service for this user"
     )
     notes: Optional[str] = Field(None, max_length=500, description="User notes about this service")
@@ -159,7 +177,7 @@ class UserServiceCreate(UserServiceBase):
 
 class UserServiceUpdate(BaseModel):
     """Schema for updating user service settings."""
-    status: Optional[str] = Field(None, regex="^(active|inactive|considering)$")
+    status: Optional[str] = Field(None, pattern="^(active|inactive|considering)$")  # FIXED: Changed from regex to pattern
     notes: Optional[str] = Field(None, max_length=500)
     notification_enabled: Optional[bool] = None
     last_checked_at: Optional[datetime] = None
@@ -203,7 +221,7 @@ class ServiceSearchResponse(BaseModel):
 
 class ServiceCategoryStats(BaseModel):
     """Schema for service category statistics."""
-    category: ServiceCategory
+    category: ServiceCategoryType
     total_services: int
     active_services: int
     with_policies: int
@@ -224,7 +242,7 @@ class ServicePrivacyImpact(BaseModel):
     """Schema for individual service privacy impact."""
     service_name: str
     service_id: int
-    risk_level: str = Field(..., regex="^(low|medium|high|critical)$")
+    risk_level: str = Field(..., pattern="^(low|medium|high|critical)$")  # FIXED: Changed from regex to pattern
     data_collection_score: Optional[float] = None
     data_sharing_score: Optional[float] = None
     user_control_score: Optional[float] = None
@@ -282,28 +300,6 @@ class BulkPolicyUpdateResponse(BaseModel):
     duration_seconds: float
 
 
-# Service Analytics Schemas
-
-class ServiceUsageStats(BaseModel):
-    """Schema for service usage statistics."""
-    service_id: int
-    service_name: str
-    total_users: int
-    active_users: int
-    average_privacy_score: Optional[float] = None
-    risk_distribution: Dict[str, int] = {}  # low, medium, high, critical counts
-    popular_categories: List[str] = []
-
-
-class PrivacyTrendsResponse(BaseModel):
-    """Schema for privacy trends analysis."""
-    overall_trends: Dict[str, float] = {}
-    category_trends: Dict[str, Dict[str, float]] = {}
-    risk_level_changes: Dict[str, int] = {}
-    policy_update_frequency: Dict[str, int] = {}
-    user_adoption_rates: Dict[str, float] = {}
-
-
 # Error Response Schemas
 
 class ErrorDetail(BaseModel):
@@ -320,44 +316,6 @@ class ErrorResponse(BaseModel):
     details: List[ErrorDetail] = []
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     request_id: Optional[str] = None
-
-
-# Batch Operation Schemas
-
-class BatchServiceOperation(BaseModel):
-    """Schema for batch service operations."""
-    service_ids: List[int] = Field(..., min_items=1, max_items=50)
-    operation: str = Field(..., regex="^(add|remove|update_status|refresh_policy)$")
-    parameters: Optional[Dict[str, Any]] = None
-
-
-class BatchOperationResult(BaseModel):
-    """Schema for batch operation results."""
-    total_requested: int
-    successful_operations: int
-    failed_operations: int
-    results: List[Dict[str, Any]] = []
-    errors: List[ErrorDetail] = []
-
-
-# Configuration and Settings Schemas
-
-class UserServiceSettings(BaseModel):
-    """Schema for user's service management settings."""
-    auto_add_popular_services: bool = Field(default=False)
-    notification_frequency: str = Field(default="weekly", regex="^(immediate|daily|weekly|monthly)$")
-    risk_tolerance: str = Field(default="medium", regex="^(low|medium|high)$")
-    auto_remove_inactive_services: bool = Field(default=False)
-    policy_update_notifications: bool = Field(default=True)
-
-
-class ServiceRecommendationSettings(BaseModel):
-    """Schema for service recommendation settings."""
-    consider_alternatives: bool = Field(default=True)
-    privacy_weight: float = Field(default=0.7, ge=0.0, le=1.0)
-    feature_weight: float = Field(default=0.3, ge=0.0, le=1.0)
-    exclude_categories: List[ServiceCategory] = []
-    minimum_user_rating: float = Field(default=3.0, ge=1.0, le=5.0)
 
 
 # Export all schemas for easy importing
@@ -394,16 +352,8 @@ __all__ = [
     "PolicyScrapeResult", 
     "BulkPolicyUpdateResponse",
     
-    # Analytics
-    "ServiceUsageStats",
-    "PrivacyTrendsResponse",
-    
     # Utilities
     "ErrorResponse",
-    "ErrorDetail",
-    "BatchServiceOperation",
-    "BatchOperationResult",
-    "UserServiceSettings",
-    "ServiceRecommendationSettings"
+    "ErrorDetail"
 ]
 

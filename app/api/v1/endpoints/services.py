@@ -316,32 +316,41 @@ async def get_user_services(
 ):
     """Get all services that the current user has added."""
     try:
-        query = select(UserService).options(
-            selectinload(UserService.service)
+        # Debug: Check if user exists
+        print(f"DEBUG: Current user ID: {current_user.id}")
+        
+        # Get user services with explicit join to avoid relationship issues
+        query = select(UserService, Service).join(
+            Service, UserService.service_id == Service.id
         ).where(UserService.user_id == current_user.id)
         
         result = await db.execute(query)
-        user_services = result.scalars().all()
+        user_service_data = result.all()
+        
+        print(f"DEBUG: Found {len(user_service_data)} user services")
         
         # Convert to response format with CORRECT field mapping
         response_data = []
-        for user_service in user_services:
-            service = user_service.service
+        for user_service, service in user_service_data:
             user_service_dict = {
                 'id': user_service.id,
                 'service_id': service.id,
                 'service_name': service.name,
                 'service_category': service.category,  # Already a string
-                'added_at': user_service.added_at,  # FIXED: Use correct field name
-                'is_active': user_service.status == "active",  # FIXED: Convert status to boolean
+                'added_at': user_service.added_at,  # Use correct field name
+                'is_active': user_service.status == "active",  # Convert status to boolean
                 'risk_score': 50.0,  # TODO: Calculate from privacy service
-                'privacy_settings': {}  # FIXED: Default empty dict since field doesn't exist in model
+                'privacy_settings': {}  # Default empty dict since field doesn't exist in model
             }
             response_data.append(UserServiceResponse(**user_service_dict))
         
+        print(f"DEBUG: Returning {len(response_data)} user services")
         return response_data
         
     except Exception as e:
+        print(f"DEBUG: Error in get_user_services: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve user services: {str(e)}"
@@ -466,13 +475,14 @@ async def get_privacy_impact(
 ):
     """Get privacy impact analysis for user's services."""
     try:
-        # Get user services with policies
-        query = select(UserService).options(
-            selectinload(UserService.service)
-        ).where(UserService.user_id == current_user.id)
+        print(f"DEBUG: Getting privacy impact for user {current_user.id}")
         
+        # Get user services count using a simple query first
+        query = select(UserService).where(UserService.user_id == current_user.id)
         result = await db.execute(query)
         user_services = result.scalars().all()
+        
+        print(f"DEBUG: Found {len(user_services)} user services")
         
         if not user_services:
             return UserPrivacyImpactResponse(
@@ -488,7 +498,7 @@ async def get_privacy_impact(
         high_risk_services = max(1, total_services // 3)  # Simulate some high-risk services
         overall_privacy_score = min(85.0, 30.0 + (total_services * 5))  # Simulate increasing risk
         
-        return UserPrivacyImpactResponse(
+        response = UserPrivacyImpactResponse(
             overall_privacy_score=overall_privacy_score,
             total_services=total_services,
             high_risk_services=high_risk_services,
@@ -500,7 +510,13 @@ async def get_privacy_impact(
             ]
         )
         
+        print(f"DEBUG: Returning privacy impact response")
+        return response
+        
     except Exception as e:
+        print(f"DEBUG: Error in get_privacy_impact: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to calculate privacy impact: {str(e)}"

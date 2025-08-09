@@ -1,70 +1,67 @@
 """
-Security utilities for authentication, authorization, and rate limiting.
+Security utilities for authentication and authorization.
 
-This module provides JWT token handling, password hashing,
-and rate limiting functionality.
+This module contains functions for password hashing, JWT token creation/verification,
+user authentication, and rate limiting.
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, Dict
-from fastapi import HTTPException, status, Request
+from typing import Optional
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-import time
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.config import settings
+from app.core.database import get_db
+from app.models.user import User
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# JWT token bearer scheme
-security = HTTPBearer(auto_error=False)
+# HTTP Bearer security scheme
+security = HTTPBearer()
 
 
 class RateLimiter:
-    """
-    Simple in-memory rate limiter for API endpoints.
+    """Simple in-memory rate limiter."""
     
-    Tracks request counts per IP address and enforces limits.
-    """
+    def __init__(self, max_requests: int = 60, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.requests = {}
     
-    def __init__(self):
-        self.requests: Dict[str, list] = {}
-    
-    def is_allowed(self, client_ip: str) -> bool:
-        """
-        Check if request is allowed based on rate limiting rules.
+    def is_allowed(self, client_id: str) -> bool:
+        """Check if client is within rate limits."""
+        now = datetime.utcnow()
         
-        Args:
-            client_ip: IP address of the client
-            
-        Returns:
-            bool: True if request is allowed, False otherwise
-        """
-        current_time = time.time()
-        minute_ago = current_time - 60
+        # Clean old entries
+        cutoff = now - timedelta(seconds=self.window_seconds)
+        self.requests = {
+            k: [req for req in v if req > cutoff]
+            for k, v in self.requests.items()
+        }
         
-        # Clean old requests
-        if client_ip in self.requests:
-            self.requests[client_ip] = [
-                req_time for req_time in self.requests[client_ip]
-                if req_time > minute_ago
-            ]
-        else:
-            self.requests[client_ip] = []
+        # Check current client
+        client_requests = self.requests.get(client_id, [])
         
-        # Check rate limit
-        if len(self.requests[client_ip]) >= settings.RATE_LIMIT_PER_MINUTE:
+        if len(client_requests) >= self.max_requests:
             return False
         
         # Add current request
-        self.requests[client_ip].append(current_time)
+        client_requests.append(now)
+        self.requests[client_id] = client_requests
+        
         return True
 
 
-# Global rate limiter instance
-rate_limiter = RateLimiter()
+# Global rate limiter instance - FIXED: Use existing setting
+rate_limiter = RateLimiter(
+    max_requests=settings.RATE_LIMIT_PER_MINUTE,
+    window_seconds=60  # 1 minute window
+)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -72,8 +69,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Verify a plain password against its hash.
     
     Args:
-        plain_password: Plain text password
-        hashed_password: Hashed password from database
+        plain_password: Plain text password to verify
+        hashed_password: Hashed password to check against
         
     Returns:
         bool: True if password matches, False otherwise
@@ -118,13 +115,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def verify_token(token: str) -> Optional[dict]:
     """
-    Verify and decode a JWT token.
+    Verify a JWT token and extract payload.
     
     Args:
         token: JWT token string
         
     Returns:
-        Optional[dict]: Decoded token payload or None if invalid
+        Optional[dict]: Token payload if valid, None otherwise
     """
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -133,22 +130,24 @@ def verify_token(token: str) -> Optional[dict]:
         return None
 
 
-async def get_current_user(request: Request) -> Optional[dict]:
+async def get_current_user(
+    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> User:
     """
     Extract and verify current user from request.
     
     Args:
-        request: FastAPI request object
+        db: Database session
+        credentials: HTTP Bearer credentials
         
     Returns:
-        Optional[dict]: Current user data or None if not authenticated
+        User: Current authenticated user
         
     Raises:
-        HTTPException: If token is invalid or missing
+        HTTPException: If token is invalid or user not found
     """
     try:
-        credentials: HTTPAuthorizationCredentials = await security(request)
-        
         if not credentials:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -166,7 +165,29 @@ async def get_current_user(request: Request) -> Optional[dict]:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        return payload
+        # Extract user email from token payload
+        user_email: str = payload.get("sub")
+        if user_email is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Get user from database
+        query = select(User).where(User.email == user_email)
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
+        
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        return user
+        
     except HTTPException:
         raise
     except Exception as e:
